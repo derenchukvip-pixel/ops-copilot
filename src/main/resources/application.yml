@@ -1,0 +1,67 @@
+spring:
+  application:
+    name: ops-copilot
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${POSTGRES_DB:ops_copilot}
+    username: ${POSTGRES_USER:ops_copilot}
+    password: ${POSTGRES_PASSWORD:changeme}
+    hikari:
+      maximum-pool-size: 10
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc.time_zone: UTC
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+server:
+  port: ${SERVER_PORT:8080}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+  api-docs:
+    path: /v3/api-docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# Application-specific configuration — bound to dev.artsiom.opscopilot.config.AgentProperties
+ops-copilot:
+  agent:
+    confidence-threshold: 0.85
+    max-iterations: 6
+    max-token-budget: 20000
+    llm-retry:
+      max-attempts: 3
+      initial-backoff-ms: 500
+      backoff-multiplier: 2.0
+    tool-retry:
+      max-attempts: 3
+      initial-backoff-ms: 200
+      backoff-multiplier: 2.0
+
+  anthropic:
+    api-key: ${ANTHROPIC_API_KEY:}
+    base-url: https://api.anthropic.com
+    model: claude-sonnet-4-20250514
+    max-tokens: 1024
+    timeout-ms: 30000
+
+logging:
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{ticketId}] %logger{36} - %msg%n'
+  level:
+    dev.artsiom.opscopilot: INFO
