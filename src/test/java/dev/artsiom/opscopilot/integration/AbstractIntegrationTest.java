@@ -5,24 +5,32 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Base class for integration tests that need a real Postgres. Testcontainers keeps the
- * container alive for the life of the JVM, so it starts once and is reused across every
- * subclass in the same test run.
+ * Base class for integration tests that need a real Postgres.
+ *
+ * <p>Deliberately NOT using {@code @Testcontainers}/{@code @Container}: that annotation pair
+ * stops the container in each test class's {@code afterAll}, even though the {@code POSTGRES}
+ * field is a single static instance shared via inheritance. The next IT class then restarts the
+ * same container object on a new random host port, but Spring's test context cache still holds
+ * the previous (now-dead) JDBC URL, since the two classes share an identical context
+ * configuration and Spring only builds the DataSource once per cache key. The result is
+ * "Connection refused" on the second IT class in a full {@code mvn verify} run, despite each IT
+ * passing individually. This is Testcontainers' documented "singleton container" pattern: start
+ * it once in a static initializer and let the JVM shut it down.
  */
-@Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 public abstract class AbstractIntegrationTest {
 
-    @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("ops_copilot_test")
             .withUsername("test")
             .withPassword("test");
+
+    static {
+        POSTGRES.start();
+    }
 
     @DynamicPropertySource
     static void datasourceProperties(DynamicPropertyRegistry registry) {

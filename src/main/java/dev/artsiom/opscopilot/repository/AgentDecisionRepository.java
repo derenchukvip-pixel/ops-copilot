@@ -4,8 +4,11 @@ import dev.artsiom.opscopilot.domain.AgentDecision;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface AgentDecisionRepository extends JpaRepository<AgentDecision, Long> {
 
     List<AgentDecision> findByTicketIdOrderByCreatedAtAsc(Long ticketId);
+
+    Optional<AgentDecision> findFirstByTicketIdOrderByCreatedAtDesc(Long ticketId);
 }
