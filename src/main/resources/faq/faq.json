@@ -1,0 +1,50 @@
+[
+  {
+    "id": "faq-data-export",
+    "question": "How do I export my data?",
+    "keywords": ["export", "csv", "download", "data", "backup"],
+    "answer": "You can export your data at any time from Settings > Data > Export. Exports are generated as CSV and emailed to you within a few minutes, including all projects, tasks, and comments in your workspace."
+  },
+  {
+    "id": "faq-api-access",
+    "question": "Does the product have an API?",
+    "keywords": ["api", "integration", "webhook", "zapier", "integrate", "rest"],
+    "answer": "Yes — every plan includes REST API access. Generate an API key from Settings > Developer, and see our API docs for endpoints covering projects, tasks, and webhooks for real-time updates."
+  },
+  {
+    "id": "faq-notifications",
+    "question": "How do I change my notification settings?",
+    "keywords": ["notification", "email alerts", "mute", "unsubscribe", "spam my inbox"],
+    "answer": "Go to Settings > Notifications to choose which events email you (mentions, due dates, comments) and switch to daily digest mode if you'd rather not get real-time emails."
+  },
+  {
+    "id": "faq-team-members",
+    "question": "How do I add or remove team members?",
+    "keywords": ["invite", "team member", "seat", "remove user", "add user", "collaborator"],
+    "answer": "Workspace admins can invite or remove members from Settings > Team. Removing a member frees their seat immediately; invited members count toward your seat limit once they accept."
+  },
+  {
+    "id": "faq-mobile-app",
+    "question": "Is there a mobile app?",
+    "keywords": ["mobile", "ios", "android", "app store", "phone"],
+    "answer": "Yes, our iOS and Android apps are available in the App Store and Google Play under the same name as the web product. They sync in real time with your web workspace."
+  },
+  {
+    "id": "faq-dark-mode",
+    "question": "Is there a dark mode?",
+    "keywords": ["dark mode", "theme", "light mode", "appearance"],
+    "answer": "Yes — toggle it from Settings > Appearance, or set it to follow your system theme automatically."
+  },
+  {
+    "id": "faq-two-factor",
+    "question": "How do I enable two-factor authentication?",
+    "keywords": ["2fa", "two factor", "mfa", "security", "authenticator"],
+    "answer": "Enable 2FA from Settings > Security > Two-Factor Authentication. We support authenticator apps (TOTP) and SMS as a backup method."
+  },
+  {
+    "id": "faq-sso",
+    "question": "Do you support single sign-on (SSO)?",
+    "keywords": ["sso", "single sign on", "saml", "okta", "azure ad"],
+    "answer": "SSO via SAML is available on the Enterprise plan, with support for Okta, Azure AD, and Google Workspace. Contact sales to have it enabled for your workspace."
+  }
+]
