@@ -19,8 +19,23 @@
 
     <properties>
         <java.version>21</java.version>
-        <springdoc.version>2.8.6</springdoc.version>
+        <springdoc.version>2.6.0</springdoc.version>
+        <testcontainers.version>1.21.3</testcontainers.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Override Spring Boot 3.3.5's managed 1.19.8 — that docker-java client can't
+                 negotiate with recent Docker Engine versions (API version too old). -->
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -88,6 +103,39 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- Testcontainers' vendored docker-java client defaults to the ancient
+                         Docker API version 1.32 unless told otherwise, which recent Docker
+                         Engine builds (Colima included) reject outright. Pinning a modern
+                         version here fixes that everywhere without requiring contributors to
+                         set JVM flags by hand. -->
+                    <systemPropertyVariables>
+                        <api.version>1.44</api.version>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+            <plugin>
+                <!-- *IT.java classes (Testcontainers integration tests) run here, on
+                     `mvn verify`, separately from the fast unit tests `mvn test` runs. -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <api.version>1.44</api.version>
+                    </systemPropertyVariables>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
