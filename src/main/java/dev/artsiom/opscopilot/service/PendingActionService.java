@@ -3,6 +3,7 @@ package dev.artsiom.opscopilot.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.artsiom.opscopilot.config.AgentProperties;
 import dev.artsiom.opscopilot.domain.AgentDecision;
 import dev.artsiom.opscopilot.domain.AuditEventType;
 import dev.artsiom.opscopilot.domain.PendingAction;
@@ -52,10 +53,13 @@ public class PendingActionService {
     private final ToolRegistry toolRegistry;
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
+    private final RetryExecutor retryExecutor;
+    private final AgentProperties.RetryConfig toolRetryConfig;
 
     public PendingActionService(PendingActionRepository pendingActionRepository, TicketRepository ticketRepository,
                                  AgentDecisionRepository agentDecisionRepository, ToolCallRepository toolCallRepository,
-                                 ToolRegistry toolRegistry, AuditLogService auditLogService, ObjectMapper objectMapper) {
+                                 ToolRegistry toolRegistry, AuditLogService auditLogService, ObjectMapper objectMapper,
+                                 RetryExecutor retryExecutor, AgentProperties agentProperties) {
         this.pendingActionRepository = pendingActionRepository;
         this.ticketRepository = ticketRepository;
         this.agentDecisionRepository = agentDecisionRepository;
@@ -63,6 +67,8 @@ public class PendingActionService {
         this.toolRegistry = toolRegistry;
         this.auditLogService = auditLogService;
         this.objectMapper = objectMapper;
+        this.retryExecutor = retryExecutor;
+        this.toolRetryConfig = agentProperties.toolRetry();
     }
 
     /**
@@ -110,19 +116,33 @@ public class PendingActionService {
 
         ToolCall toolCall = new ToolCall(pendingAction.getTicketId(), tool.name(), pendingAction.getParameters());
         try {
-            ToolExecutionResult result = tool.execute(parameters);
-            toolCall.recordAttempt(ToolCallStatus.SUCCESS, writeJson(result.data()));
+            RetryExecutor.RetryOutcome<ToolExecutionResult> outcome = retryExecutor.executeWithRetry(
+                    toolRetryConfig, tool.name(), () -> tool.execute(parameters));
+            toolCall.complete(outcome.attemptsUsed(), ToolCallStatus.SUCCESS, writeJson(outcome.result().data()));
             toolCallRepository.save(toolCall);
 
             auditLogService.record(pendingAction.getTicketId(), AuditEventType.ACTION_APPROVED, Map.of(
-                    "pendingActionId", pendingActionId, "reviewedBy", reviewer, "result", result.summary()));
+                    "pendingActionId", pendingActionId, "reviewedBy", reviewer, "result", outcome.result().summary()));
 
             Ticket ticket = getTicketOrThrow(pendingAction.getTicketId());
             ticket.setStatus(TicketStatus.RESOLVED_AUTO);
             ticket.setResolvedAt(now);
             ticketRepository.save(ticket);
+        } catch (RetryExhaustedException e) {
+            toolCall.complete(e.getAttemptsMade(), ToolCallStatus.FAILED, String.valueOf(e.getCause()));
+            toolCallRepository.save(toolCall);
+            auditLogService.record(pendingAction.getTicketId(), AuditEventType.ERROR, Map.of(
+                    "pendingActionId", pendingActionId, "toolName", tool.name(), "error", String.valueOf(e.getCause())));
+
+            Ticket ticket = getTicketOrThrow(pendingAction.getTicketId());
+            ticket.setStatus(TicketStatus.ERROR);
+            ticketRepository.save(ticket);
+            auditLogService.record(pendingAction.getTicketId(), AuditEventType.ESCALATED_TO_HUMAN, Map.of(
+                    "reason", "Approved action " + pendingActionId + " failed after retries: " + e.getCause()));
+
+            log.error("Approved action {} failed to execute after retries", pendingActionId, e);
         } catch (RuntimeException e) {
-            toolCall.recordAttempt(ToolCallStatus.FAILED, e.getMessage());
+            toolCall.complete(1, ToolCallStatus.FAILED, e.getMessage());
             toolCallRepository.save(toolCall);
             auditLogService.record(pendingAction.getTicketId(), AuditEventType.ERROR, Map.of(
                     "pendingActionId", pendingActionId, "toolName", tool.name(), "error", String.valueOf(e.getMessage())));

@@ -75,8 +75,13 @@ public class ToolCall {
         this.updatedAt = Instant.now();
     }
 
-    public void recordAttempt(ToolCallStatus status, String result) {
-        this.attemptCount++;
+    /**
+     * Finalizes this call after all retry attempts (successful or not) have run.
+     * {@code attemptCount} is the total number of attempts {@link dev.artsiom.opscopilot.service.RetryExecutor}
+     * actually made — this row represents one logical tool invocation, not one row per attempt.
+     */
+    public void complete(int attemptCount, ToolCallStatus status, String result) {
+        this.attemptCount = attemptCount;
         this.status = status;
         this.result = result;
     }

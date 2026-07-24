@@ -20,8 +20,8 @@ import java.util.List;
 /**
  * {@link LlmClient} backed by direct calls to the Anthropic Messages API (tool use), rather than
  * a vendored SDK — there is no official Anthropic Java SDK published on Maven Central at the
- * time of writing. Forces the model to call the classify_ticket tool on every request via
- * tool_choice, so the response is always structured — no free-text parsing.
+ * time of writing. Every call forces a specific tool via tool_choice, so responses are always
+ * structured — no free-text parsing anywhere in this class.
  */
 @Component
 public class ClaudeLlmClient implements LlmClient {
@@ -33,14 +33,14 @@ public class ClaudeLlmClient implements LlmClient {
     private final ObjectMapper objectMapper;
     private final AgentProperties.RetryConfig retryConfig;
     private final AnthropicProperties anthropicProperties;
-    private final JsonNode inputSchema;
+    private final JsonNode classificationSchema;
 
     public ClaudeLlmClient(AnthropicProperties anthropicProperties, AgentProperties agentProperties,
                             RestClient.Builder restClientBuilder, ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
         this.anthropicProperties = anthropicProperties;
         this.retryConfig = agentProperties.llmRetry();
-        this.inputSchema = parseSchema(objectMapper);
+        this.classificationSchema = parseSchema(objectMapper, ClassificationPrompt.INPUT_SCHEMA_JSON);
         this.restClient = restClientBuilder
                 .baseUrl(anthropicProperties.baseUrl())
                 .defaultHeader("x-api-key", anthropicProperties.apiKey())
@@ -49,11 +49,11 @@ public class ClaudeLlmClient implements LlmClient {
                 .build();
     }
 
-    private static JsonNode parseSchema(ObjectMapper objectMapper) {
+    private static JsonNode parseSchema(ObjectMapper objectMapper, String schemaJson) {
         try {
-            return objectMapper.readTree(ClassificationPrompt.INPUT_SCHEMA_JSON);
+            return objectMapper.readTree(schemaJson);
         } catch (Exception e) {
-            throw new IllegalStateException("Invalid classification tool schema", e);
+            throw new IllegalStateException("Invalid tool schema", e);
         }
     }
 
@@ -66,10 +66,31 @@ public class ClaudeLlmClient implements LlmClient {
                 List.of(new AnthropicApi.Message("user", ClassificationPrompt.userMessage(subject, body))),
                 List.of(new AnthropicApi.Tool(ClassificationPrompt.TOOL_NAME,
                         "Classify a support ticket by intent category with a confidence score.",
-                        inputSchema)),
+                        classificationSchema)),
                 new AnthropicApi.ToolChoice("tool", ClassificationPrompt.TOOL_NAME)
         );
 
+        AnthropicApi.MessageResponse response = sendWithRetry(request);
+        return toClassificationResult(response);
+    }
+
+    @Override
+    public ParameterExtractionResult extractParameters(String subject, String body, String toolName,
+                                                         String toolDescription, JsonNode inputSchema) {
+        AnthropicApi.MessageRequest request = new AnthropicApi.MessageRequest(
+                anthropicProperties.model(),
+                anthropicProperties.maxTokens(),
+                ParameterExtractionPrompt.systemPrompt(toolName),
+                List.of(new AnthropicApi.Message("user", ParameterExtractionPrompt.userMessage(subject, body))),
+                List.of(new AnthropicApi.Tool(toolName, toolDescription, inputSchema)),
+                new AnthropicApi.ToolChoice("tool", toolName)
+        );
+
+        AnthropicApi.MessageResponse response = sendWithRetry(request);
+        return toParameterExtractionResult(response);
+    }
+
+    private AnthropicApi.MessageResponse sendWithRetry(AnthropicApi.MessageRequest request) {
         int attempt = 0;
         long backoffMs = retryConfig.initialBackoffMs();
         RuntimeException lastFailure = null;
@@ -77,12 +98,11 @@ public class ClaudeLlmClient implements LlmClient {
         while (attempt < retryConfig.maxAttempts()) {
             attempt++;
             try {
-                AnthropicApi.MessageResponse response = restClient.post()
+                return restClient.post()
                         .uri("/v1/messages")
                         .body(request)
                         .retrieve()
                         .body(AnthropicApi.MessageResponse.class);
-                return toClassificationResult(response);
             } catch (RestClientResponseException e) {
                 if (!isRetryable(e)) {
                     throw new LlmException("Anthropic API rejected the request (status "
@@ -124,13 +144,15 @@ public class ClaudeLlmClient implements LlmClient {
         }
     }
 
-    private ClassificationResult toClassificationResult(AnthropicApi.MessageResponse response) {
-        AnthropicApi.ContentBlock toolUse = response.content().stream()
+    private AnthropicApi.ContentBlock findToolUseBlock(AnthropicApi.MessageResponse response) {
+        return response.content().stream()
                 .filter(block -> "tool_use".equals(block.type()))
                 .findFirst()
                 .orElseThrow(() -> new LlmException("Anthropic response contained no tool_use block"));
+    }
 
-        JsonNode input = toolUse.input();
+    private ClassificationResult toClassificationResult(AnthropicApi.MessageResponse response) {
+        JsonNode input = findToolUseBlock(response).input();
         TicketCategory category = TicketCategory.fromWireValue(input.get("category").asText());
         BigDecimal confidence = new BigDecimal(input.get("confidence").asText());
         String reasoning = input.get("reasoning").asText();
@@ -139,6 +161,13 @@ public class ClaudeLlmClient implements LlmClient {
         int inputTokens = response.usage() != null ? response.usage().inputTokens() : 0;
         int outputTokens = response.usage() != null ? response.usage().outputTokens() : 0;
         return new ClassificationResult(classification, inputTokens, outputTokens);
+    }
+
+    private ParameterExtractionResult toParameterExtractionResult(AnthropicApi.MessageResponse response) {
+        JsonNode input = findToolUseBlock(response).input();
+        int inputTokens = response.usage() != null ? response.usage().inputTokens() : 0;
+        int outputTokens = response.usage() != null ? response.usage().outputTokens() : 0;
+        return new ParameterExtractionResult(input, inputTokens, outputTokens);
     }
 
     private void sleep(long millis) {

@@ -5,6 +5,7 @@ import dev.artsiom.opscopilot.domain.Ticket;
 import dev.artsiom.opscopilot.dto.AuditLogEntryResponse;
 import dev.artsiom.opscopilot.dto.TicketRequest;
 import dev.artsiom.opscopilot.dto.TicketResponse;
+import dev.artsiom.opscopilot.service.AgentOrchestrationService;
 import dev.artsiom.opscopilot.service.AuditLogService;
 import dev.artsiom.opscopilot.service.TicketIngestionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,19 +29,33 @@ public class TicketController {
 
     private final TicketIngestionService ticketIngestionService;
     private final AuditLogService auditLogService;
+    private final AgentOrchestrationService agentOrchestrationService;
 
-    public TicketController(TicketIngestionService ticketIngestionService, AuditLogService auditLogService) {
+    public TicketController(TicketIngestionService ticketIngestionService, AuditLogService auditLogService,
+                             AgentOrchestrationService agentOrchestrationService) {
         this.ticketIngestionService = ticketIngestionService;
         this.auditLogService = auditLogService;
+        this.agentOrchestrationService = agentOrchestrationService;
     }
 
     @PostMapping
     @Operation(summary = "Submit a support ticket. Idempotent on externalId — resubmitting the "
-            + "same externalId returns the original ticket instead of creating a duplicate.")
+            + "same externalId returns the original ticket instead of creating a duplicate. New "
+            + "tickets run through the agent synchronously before the response is returned.")
     public ResponseEntity<TicketResponse> submitTicket(@Valid @RequestBody TicketRequest request) {
         TicketIngestionService.IngestResult result = ticketIngestionService.ingest(request);
+
+        Ticket ticket = result.ticket();
+        if (result.created()) {
+            // Deliberately outside the ingestion transaction — this calls the LLM over the
+            // network, and a duplicate resubmission (result.created() == false) must never
+            // re-run it, or a retried webhook would produce duplicate tool calls (FR7).
+            agentOrchestrationService.process(ticket.getId());
+            ticket = ticketIngestionService.getById(ticket.getId());
+        }
+
         HttpStatus status = result.created() ? HttpStatus.CREATED : HttpStatus.OK;
-        return ResponseEntity.status(status).body(TicketResponse.from(result.ticket()));
+        return ResponseEntity.status(status).body(TicketResponse.from(ticket));
     }
 
     @GetMapping("/{id}")
