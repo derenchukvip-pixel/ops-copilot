@@ -1,0 +1,172 @@
+{
+  "info": {
+    "name": "Ops Copilot",
+    "description": "AI agent for support ticket triage — classifies incoming tickets, auto-resolves safe cases, and queues risky actions for operator approval. Covers the 3 demo scenarios from the project's Definition of Done.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "pendingActionId", "value": "1" },
+    { "key": "ticketId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Demo 1 — Password reset (auto-resolved)",
+      "item": [
+        {
+          "name": "Submit ticket",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalId\": \"demo-password-reset-1\",\n  \"customerEmail\": \"alice@acme.io\",\n  \"subject\": \"Forgot my password\",\n  \"body\": \"I cannot log in, please reset my password.\",\n  \"receivedAt\": \"2026-01-15T10:00:00Z\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/tickets", "host": ["{{baseUrl}}"], "path": ["api", "tickets"] }
+          }
+        },
+        {
+          "name": "Get ticket status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/tickets/{{ticketId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tickets", "{{ticketId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get audit log",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/tickets/{{ticketId}}/audit-log",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tickets", "{{ticketId}}", "audit-log"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Demo 2 — Plan change (approval flow)",
+      "item": [
+        {
+          "name": "Submit ticket",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalId\": \"demo-plan-change-1\",\n  \"customerEmail\": \"bob@acme.io\",\n  \"subject\": \"Upgrade my plan\",\n  \"body\": \"I would like to move to the pro plan please.\",\n  \"receivedAt\": \"2026-01-15T10:05:00Z\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/tickets", "host": ["{{baseUrl}}"], "path": ["api", "tickets"] }
+          }
+        },
+        {
+          "name": "List pending actions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/pending-actions?status=PENDING",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "pending-actions"],
+              "query": [{ "key": "status", "value": "PENDING" }]
+            }
+          }
+        },
+        {
+          "name": "Approve pending action",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reviewedBy\": \"ops-jane\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pending-actions/{{pendingActionId}}/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "pending-actions", "{{pendingActionId}}", "approve"]
+            }
+          }
+        },
+        {
+          "name": "Reject pending action (alternative to approve)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Customer needs to confirm billing details first\",\n  \"reviewedBy\": \"ops-jane\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pending-actions/{{pendingActionId}}/reject",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "pending-actions", "{{pendingActionId}}", "reject"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Demo 3 — Spam (escalated, no action attempted)",
+      "item": [
+        {
+          "name": "Submit ticket",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalId\": \"demo-spam-1\",\n  \"customerEmail\": \"spammer@example.com\",\n  \"subject\": \"MAKE MONEY FAST\",\n  \"body\": \"Buy cheap watches at totally-legit-watches.example\",\n  \"receivedAt\": \"2026-01-15T10:10:00Z\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/tickets", "host": ["{{baseUrl}}"], "path": ["api", "tickets"] }
+          }
+        },
+        {
+          "name": "Get audit log (expect no TOOL_CALLED event)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/tickets/{{ticketId}}/audit-log",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tickets", "{{ticketId}}", "audit-log"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Idempotency check",
+      "item": [
+        {
+          "name": "Resubmit demo-password-reset-1 (same externalId)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalId\": \"demo-password-reset-1\",\n  \"customerEmail\": \"alice@acme.io\",\n  \"subject\": \"Forgot my password\",\n  \"body\": \"I cannot log in, please reset my password.\",\n  \"receivedAt\": \"2026-01-15T10:00:00Z\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/tickets", "host": ["{{baseUrl}}"], "path": ["api", "tickets"] },
+            "description": "Returns 200 OK (not 201) with the original ticket — no duplicate is created. Send this 2-3 times to see it stay idempotent."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Metrics",
+      "item": [
+        {
+          "name": "Get summary",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/metrics/summary", "host": ["{{baseUrl}}"], "path": ["api", "metrics", "summary"] }
+          }
+        }
+      ]
+    }
+  ]
+}
