@@ -13,6 +13,7 @@ and the audit trail.
 
 ## Contents
 
+- [Screenshots](#screenshots)
 - [Architecture](#architecture)
 - [Why it's built this way](#why-its-built-this-way)
 - [Tech stack](#tech-stack)
@@ -21,6 +22,25 @@ and the audit trail.
 - [Demo scenarios](#demo-scenarios)
 - [Tests](#tests)
 - [Design decisions worth flagging](#design-decisions-worth-flagging)
+
+## Screenshots
+
+Swagger UI, and a live run of demo scenario 1 (password reset, auto-resolved end to end) against
+a real Claude classification — not a mock, this is the actual model's `reasoning` and
+`confidence` for that ticket.
+
+![Swagger UI overview](docs/screenshots/01-swagger-overview.webp)
+
+![Ticket submitted and auto-resolved](docs/screenshots/02-ticket-created-auto-resolved.png)
+*`POST /api/tickets` — the ticket comes back `RESOLVED_AUTO` before the response is even returned.*
+
+![Audit trail, part 1](docs/screenshots/03-audit-log-part1.png)
+*`GET /api/tickets/{id}/audit-log` — real classification: `confidence: 0.98`, and reasoning that
+cites the exact words in the ticket.*
+
+![Audit trail, part 2](docs/screenshots/04-audit-log-part2.png)
+*Same audit log, scrolled down — `TOOL_CALLED` → `TOOL_RESULT` → `ACTION_AUTO_EXECUTED`. No human
+touched this ticket.*
 
 ## Architecture
 

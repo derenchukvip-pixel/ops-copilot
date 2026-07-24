@@ -57,7 +57,7 @@ class ClaudeLlmClientTest {
     @BeforeEach
     void setUp() {
         AnthropicProperties anthropicProperties = new AnthropicProperties(
-                "test-key", "https://api.anthropic.com", "claude-sonnet-4-20250514", 1024, 5000);
+                "test-key", "https://api.anthropic.com", "claude-sonnet-5", 1024, 5000);
         AgentProperties.RetryConfig retryConfig = new AgentProperties.RetryConfig(3, 10, 2.0);
         AgentProperties agentProperties = new AgentProperties(
                 new BigDecimal("0.85"), 6, 20000, retryConfig, retryConfig);
