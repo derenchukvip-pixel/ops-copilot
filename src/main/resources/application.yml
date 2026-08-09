@@ -53,6 +53,13 @@ ops-copilot:
       initial-backoff-ms: 200
       backoff-multiplier: 2.0
 
+  # Browser origins allowed to call /api/**. Empty by default: the operator console is served
+  # from a different origin than the API, and rather than opening the approval endpoints to
+  # every site on the internet, the one origin that needs them is named explicitly.
+  # Example: CORS_ALLOWED_ORIGINS=http://localhost:3000,https://derenchukvip-pixel.github.io
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+
   anthropic:
     api-key: ${ANTHROPIC_API_KEY:}
     base-url: https://api.anthropic.com
