@@ -1,0 +1,90 @@
+name: Console
+
+# Lint, typecheck, test and build the operator console, then publish it to GitHub Pages.
+#
+# The published build is a demo build: NEXT_PUBLIC_DATA_SOURCE is left at its default, so the
+# bundle contains fixtures and no code path that can reach a real API. That is deliberate —
+# the agent behind the live API spends money at Anthropic per ticket, and a public URL is not
+# a safe place to point at it.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'console/**'
+      - '.github/workflows/console.yml'
+  pull_request:
+    paths:
+      - 'console/**'
+      - '.github/workflows/console.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: console
+
+jobs:
+  check:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Pinned to the major the project is developed and verified against.
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # `next build` typechecks too, but running tsc first means a type error is reported as a
+      # type error rather than buried in a build log.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build the demo site
+        run: npm run build
+        env:
+          # GitHub Pages serves this repo's site from /ops-copilot/, so every asset URL needs
+          # the prefix. Getting this wrong produces a page that loads and then renders nothing.
+          NEXT_PUBLIC_BASE_PATH: /ops-copilot
+          NEXT_PUBLIC_DATA_SOURCE: demo
+
+      # Belt and braces: artifact-based Pages deployment does not run Jekyll, but if it ever
+      # did, Jekyll would silently drop Next's `_next/` directory and serve an unstyled page.
+      - name: Disable Jekyll
+        run: touch out/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: console/out
+
+  deploy:
+    name: Deploy to GitHub Pages
+    # Only from main. A pull request gets the checks above but must not replace the live demo.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: check
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,37 @@
+name: Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'pom.xml'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'pom.xml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Compile and unit-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # `test` runs surefire only. The five Testcontainers integration tests are bound to
+      # failsafe and run under `./mvnw verify`, which needs a Docker daemon — worth adding here
+      # once someone has watched it pass on a runner, rather than committing a step nobody has
+      # seen succeed.
+      - name: Unit tests
+        run: ./mvnw -B test

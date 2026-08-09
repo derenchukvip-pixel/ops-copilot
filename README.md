@@ -11,8 +11,13 @@ not a prompt-and-a-prayer prototype. See [§ Why it's built this way](#why-its-b
 the reasoning behind the parts that take the most space in the code: idempotency, guardrails,
 and the audit trail.
 
+The person who approves those risky actions works in [`console/`](console/) — a TypeScript
+operator console for the human half of the loop. **Live demo (on fixtures, no backend needed):**
+https://derenchukvip-pixel.github.io/ops-copilot/
+
 ## Contents
 
+- [Operator console](#operator-console)
 - [Screenshots](#screenshots)
 - [Architecture](#architecture)
 - [Why it's built this way](#why-its-built-this-way)
@@ -22,6 +27,34 @@ and the audit trail.
 - [Demo scenarios](#demo-scenarios)
 - [Tests](#tests)
 - [Design decisions worth flagging](#design-decisions-worth-flagging)
+
+## Operator console
+
+`REQUIRES_APPROVAL` actions wait for a person. For a while the only way to be that person was
+`curl` — which meant half of what this system specifies was built, tested, and unusable.
+
+[`console/`](console/) is that half: a Next.js + TypeScript console with three screens — the
+approval queue, a ticket's audit trail, and the metrics summary — built entirely on the API
+below. No endpoint was added for it. One thing was: browser origins now need an explicit
+allowlist (`ops-copilot.cors.allowed-origins`, empty by default), because without CORS the
+browser blocks every call before it is sent.
+
+![The approval queue](docs/screenshots/console-01-approval-queue.png)
+*One card per waiting action. `change_subscription_plan` with `{"targetPlan": "pro"}` reads as
+"Move bob@acme.example to the Pro plan" — the person deciding should not have to parse
+snake_case first.*
+
+![A low-confidence refund](docs/screenshots/console-02-low-confidence.png)
+*The case that matters. `DecisionEngine.decide` queues a `REQUIRES_APPROVAL` tool **before** it
+compares confidence to the threshold, so a 0.62-confidence refund arrives looking exactly like a
+0.99 one. The console makes the difference impossible to miss.*
+
+![The refund confirmation](docs/screenshots/console-03-refund-confirmation.png)
+*Anything that moves money shows the amount twice — as a figure and spelled out. `$1,200.00` and
+`$120.00` are one glyph apart; "one thousand two hundred" and "one hundred twenty" are not.*
+
+Full write-up, the rest of the screens, and the reasoning behind the optimistic-write rollback
+rules: [`console/README.md`](console/README.md).
 
 ## Screenshots
 
@@ -168,6 +201,10 @@ API via Spring's `RestClient` — there's no official Anthropic Java SDK publish
 at the time of writing, and a raw HTTP client keeps the tool-use protocol and the FR7 retry logic
 fully visible and testable instead of hidden inside a third-party library.
 
+The operator console is Next.js 16, React 19, TypeScript and Tailwind 4, tested with Vitest and
+Testing Library, and built as a static export — it has no server of its own, which is what lets
+it deploy to GitHub Pages and also means there is nowhere in it to hide a secret.
+
 ## Running it
 
 ```bash
@@ -198,6 +235,22 @@ export DB_HOST=localhost ANTHROPIC_API_KEY=sk-ant-...
 ./mvnw spring-boot:run
 ```
 
+### With the operator console
+
+The console is a separate origin, so the API has to be told to allow it. Nothing is allowed by
+default — there is no wildcard, because these endpoints approve refunds.
+
+```bash
+CORS_ALLOWED_ORIGINS=http://localhost:3000 ./mvnw spring-boot:run
+```
+
+```bash
+cd console && npm ci && npm run dev
+```
+
+Set `NEXT_PUBLIC_DATA_SOURCE=live` in `console/.env.local` to point it at the API; left at its
+default the console runs on fixtures and needs no backend at all.
+
 ### Running the tests
 
 ```bash
@@ -222,6 +275,11 @@ Full interactive docs at `/swagger-ui.html`. Summary:
 | POST | `/api/pending-actions/{id}/approve` | Approve — executes the tool immediately. |
 | POST | `/api/pending-actions/{id}/reject` | Reject — ticket is escalated to a human. |
 | GET | `/api/metrics/summary` | Autonomous resolution rate, counts by status, avg resolution time. |
+
+Calling any of these from a browser on another origin requires that origin to be listed in
+`ops-copilot.cors.allowed-origins` (env: `CORS_ALLOWED_ORIGINS`). The list is empty by default and
+there is no wildcard option — `approve` executes refunds, and the safe default for who may reach
+it from a web page is nobody. `curl` and Postman are unaffected; CORS is a browser rule.
 
 ## Demo scenarios
 
@@ -335,7 +393,9 @@ A ready-to-import Postman collection covering all three scenarios plus every oth
 
 ## Tests
 
-44 tests, all green: 39 unit, 5 integration (Testcontainers + real Postgres).
+52 on the backend, all green: 47 unit (`./mvnw test`), 5 integration (`./mvnw verify`,
+Testcontainers + real Postgres). The console adds 75 of its own — see
+[`console/README.md`](console/README.md#tests).
 
 | Class | What it covers |
 |---|---|
@@ -345,6 +405,7 @@ A ready-to-import Postman collection covering all three scenarios plus every oth
 | `ClaudeLlmClientTest` | Retry on 5xx/429, fail-fast on 4xx, tool_use parsing (against a mock HTTP server) |
 | `SafeToolsTest` | Parameter validation independent of what the model returned, for every tool |
 | `MetricsServiceTest` | Autonomous resolution rate / average resolution time math |
+| `WebCorsConfigTest` | The browser allowlist: nothing registered without configured origins, only GET and POST permitted, an unlisted origin does not match |
 | `TicketIdempotencyIT` | Same webhook 3× → exactly one ticket |
 | `PendingActionApprovalIT` | 5 concurrent approvals → exactly one execution |
 | `AuditTrailIT` | Complete, correctly ordered audit trail for a real request through the full stack |
