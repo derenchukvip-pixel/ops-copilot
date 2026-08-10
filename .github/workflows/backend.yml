@@ -29,9 +29,11 @@ jobs:
           java-version: '21'
           cache: maven
 
-      # `test` runs surefire only. The five Testcontainers integration tests are bound to
-      # failsafe and run under `./mvnw verify`, which needs a Docker daemon — worth adding here
-      # once someone has watched it pass on a runner, rather than committing a step nobody has
-      # seen succeed.
-      - name: Unit tests
-        run: ./mvnw -B test
+      # `verify` runs surefire and then failsafe, so this covers the five Testcontainers tests
+      # as well — the ones that assert the guarantees worth having: three identical webhooks
+      # produce one ticket, five concurrent approvals execute once, and an exhausted LLM retry
+      # lands in ERROR rather than sitting in PROCESSING forever. Those need a real Postgres,
+      # and the runner provides a Docker daemon at the standard socket, so nothing extra is
+      # configured here. (Locally on Colima the socket is elsewhere — see the README.)
+      - name: Tests
+        run: ./mvnw -B verify
