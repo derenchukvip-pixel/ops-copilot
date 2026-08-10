@@ -257,10 +257,22 @@ default the console runs on fixtures and needs no backend at all.
 ./mvnw verify
 ```
 
-Needs a Docker daemon (Testcontainers spins up real Postgres for the integration tests). On
-Colima instead of Docker Desktop, see the note in [`pom.xml`](pom.xml) — Testcontainers' vendored
-docker-java client pins an old Docker API version that recent Docker Engine builds reject; the
-`api.version` system property in the Surefire/Failsafe config works around it.
+Needs a Docker daemon (Testcontainers spins up real Postgres for the integration tests).
+
+On Colima instead of Docker Desktop, two things are needed. The first is already in
+[`pom.xml`](pom.xml): Testcontainers' vendored docker-java client pins an old Docker API version
+that recent Docker Engine builds reject, which the `api.version` system property in the
+Surefire/Failsafe config works around. The second is the socket — Colima does not put one at
+`/var/run/docker.sock`, so Testcontainers reports "Could not find a valid Docker environment"
+even though `docker ps` works fine:
+
+```bash
+export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
+export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
+```
+
+The second variable is what the *containers* are told to talk to (Ryuk, the reaper, mounts it),
+and it stays at the conventional path regardless of where the host socket lives.
 
 ## API reference
 
@@ -393,8 +405,10 @@ A ready-to-import Postman collection covering all three scenarios plus every oth
 
 ## Tests
 
-52 on the backend, all green: 47 unit (`./mvnw test`), 5 integration (`./mvnw verify`,
-Testcontainers + real Postgres). The console adds 89 of its own — see
+52 on the backend, all green under `./mvnw verify`: 47 unit plus 5 integration tests against a
+real Postgres in Testcontainers. CI runs the full `verify`, not just the unit tests — the
+guarantees worth having in this system are the concurrent ones, and those are exactly the ones a
+unit test cannot make. The console adds 89 of its own — see
 [`console/README.md`](console/README.md#tests).
 
 | Class | What it covers |
