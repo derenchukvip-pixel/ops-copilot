@@ -24,7 +24,15 @@
   --color-positive-tint: #e6f4ef;
   --color-warning: #9a5b00;
   --color-warning-tint: #fdf1e0;
-  --color-neutral: #64748b;
+  /*
+   * Darkened from the #64748B in the shared palette. That value on this tint measures 4.34:1,
+   * which is below the 4.5:1 WCAG AA needs for text this size — and it is the most-used badge
+   * on the busiest screen, since every queue card carries a category in it. #556070 measures
+   * 5.82:1 and is still quiet enough not to compete with the ink text beside it.
+   *
+   * The same pair is under-contrast wherever else the shared palette is used.
+   */
+  --color-neutral: #556070;
   --color-neutral-tint: #f1f5f9;
   --color-negative: #b11c1c;
   --color-negative-tint: #fdecec;
