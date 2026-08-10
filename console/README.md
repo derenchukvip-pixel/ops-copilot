@@ -240,7 +240,7 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000 ./mvnw spring-boot:run
 
 ## Tests
 
-75 tests, `npm test`. They cover the parts where being wrong is expensive rather than the parts
+89 tests, `npm test`. They cover the parts where being wrong is expensive rather than the parts
 that are easy to assert:
 
 - **`domain/money.test.ts`** — spelling amounts out. `$1,200.00` and `$120.00` must never spell
@@ -256,6 +256,45 @@ that are easy to assert:
 - **`api/demo-ops-api.test.ts`** — the demo client's state transitions match the Java service's,
   a second decision on the same action is a conflict, and the metrics are arithmetic over the
   tickets rather than stored numbers.
+- **`api/http-ops-api.test.ts`** — the client that talks to a real backend. These stand in for an
+  end-to-end run, which needs Postgres and an Anthropic key: they pin the exact request sent for
+  each call, and what the client makes of every response the API can return — 409 and 404 as
+  their own types, the handler's message preferred over the status line, an HTML error page from
+  a proxy not crashing the parse, an empty 200 body not being parsed at all, and an aborted
+  request passing through instead of being reported as "can't reach the API".
+
+## Accessibility
+
+Measured, not assumed.
+
+**Contrast.** Every text node on every screen and in every dialog and notice was measured against
+its computed background. All pass WCAG AA — but only after a fix: the shared palette's `neutral`
+(`#64748B` on `#F1F5F9`) measures **4.34:1**, under the 4.5:1 that text this size needs, and it is
+the most-used badge on the busiest screen since every queue card carries a category in it. It is
+darkened to `#556070` here, which measures 5.82:1 and is still quiet enough not to compete with
+the ink beside it.
+
+| Pair | Ratio |
+|---|---|
+| `positive` on its tint | 4.68:1 |
+| `warning` on its tint | 4.87:1 |
+| `negative` on its tint | 6.02:1 |
+| `neutral` on its tint (after the fix) | 5.82:1 |
+| `ink-muted` on the page background | 5.09:1 |
+| `brand-bright` links on a card | 5.75:1 |
+
+Disabled controls are deliberately below that floor and are exempt under SC 1.4.3 — the "Reject
+and escalate" button reads as unavailable until a reason is typed.
+
+**Keyboard.** Verified with real key events, not by reading the spec: tab order follows the
+visual order; opening a dialog moves focus into it; no interactive element outside a modal can be
+reached by Tab while it is open; Escape closes it, and the console's own state clears with it, so
+the dialog reopens with an empty reason field rather than the previous card's text. The focus ring
+is 2px and drawn in the bright brand colour so it stays visible on both the page background and
+inside cards.
+
+**Not carried by colour alone.** Every state badge is an icon, a word and a colour at once. The
+low-confidence warning is a number, a bar and a sentence.
 
 ## What it deliberately does not do
 

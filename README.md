@@ -394,7 +394,7 @@ A ready-to-import Postman collection covering all three scenarios plus every oth
 ## Tests
 
 52 on the backend, all green: 47 unit (`./mvnw test`), 5 integration (`./mvnw verify`,
-Testcontainers + real Postgres). The console adds 75 of its own — see
+Testcontainers + real Postgres). The console adds 89 of its own — see
 [`console/README.md`](console/README.md#tests).
 
 | Class | What it covers |
