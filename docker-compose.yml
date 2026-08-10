@@ -27,6 +27,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-ops_copilot}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # Empty unless set, which leaves the API unreachable from any browser page — the right
+      # default for endpoints that issue refunds. Set it to run the operator console against this.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
     ports:
       - "8080:8080"
 
